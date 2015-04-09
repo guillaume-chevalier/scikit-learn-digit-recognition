@@ -1,4 +1,4 @@
-# Digit Recognition with a scikit-learn's Bernoulli RBM and a Logistic Classifier.
+# Digit Recognition with scikit-learn's Bernoulli RBM and a Logistic Classifier.
 
 
 ## INSTALL REQUIREMENTS:
