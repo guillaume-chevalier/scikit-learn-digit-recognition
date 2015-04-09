@@ -7,6 +7,7 @@
 2. scikit-learn
 3. iPython
 4. openCV
+
 The individual instructions are found in the "REQUIREMENTS" folder. 
 
 
