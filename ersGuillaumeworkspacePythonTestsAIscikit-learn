@@ -1,0 +1,990 @@
+[1mdiff --git a/RBM OCR.ipynb b/RBM OCR.ipynb[m
+[1mdeleted file mode 100644[m
+[1mindex 8911e39..0000000[m
+[1m--- a/RBM OCR.ipynb[m	
+[1m+++ /dev/null[m
+[36m@@ -1,983 +0,0 @@[m
+[31m-{[m
+[31m- "metadata": {[m
+[31m-  "name": "",[m
+[31m-  "signature": "sha256:02799a98f911d157ce6dfab32c626ca172f15b885f66c17543ccc377e3353506"[m
+[31m- },[m
+[31m- "nbformat": 3,[m
+[31m- "nbformat_minor": 0,[m
+[31m- "worksheets": [[m
+[31m-  {[m
+[31m-   "cells": [[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "# This work is much pimped from this example of scikit-learn's documentation: \n",[m
+[31m-      "# http://scikit-learn.org/stable/auto_examples/neural_networks/plot_rbm_logistic_classification.html\n",[m
+[31m-      "\"\"\"\n",[m
+[31m-      "==============================================================\n",[m
+[31m-      "Restricted Boltzmann Machine features for digit classification\n",[m
+[31m-      "==============================================================\n",[m
+[31m-      "\n",[m
+[31m-      "For grayscale image data where pixel values can be interpreted as degrees of\n",[m
+[31m-      "blackness on a white background, like handwritten digit recognition, the\n",[m
+[31m-      "Bernoulli Restricted Boltzmann machine model can perform effective non-linear\n",[m
+[31m-      "feature extraction.\n",[m
+[31m-      "\n",[m
+[31m-      "In order to learn good latent representations from a small dataset, we\n",[m
+[31m-      "artificially generate more labeled data by perturbing the training data with\n",[m
+[31m-      "linear shifts of 1 pixel in each direction. The same processing will be done\n",[m
+[31m-      "when guessing an image's label. \n",[m
+[31m-      "\n",[m
+[31m-      "There is a classification pipeline with a BernoulliRBM\n",[m
+[31m-      "feature extractor and a LogisticRegression classifier. The hyperparameters\n",[m
+[31m-      "of the entire model (learning rate, hidden layer size, regularization)\n",[m
+[31m-      "were optimized by grid search (cross validation), but the search has not been\n",[m
+[31m-      "done with a big amount of parameters. \n",[m
+[31m-      "\"\"\"\n",[m
+[31m-      "\n",[m
+[31m-      "from __future__ import print_function\n",[m
+[31m-      "\n",[m
+[31m-      "# print(__doc__)\n",[m
+[31m-      "\n",[m
+[31m-      "# Authors: Yann N. Dauphin, Vlad Niculae, Gabriel Synnaeve, Guillaume Chevalier\n",[m
+[31m-      "# License: BSD\n",[m
+[31m-      "\n",[m
+[31m-      "import pickle\n",[m
+[31m-      "import os.path\n",[m
+[31m-      "import math \n",[m
+[31m-      "import random\n",[m
+[31m-      "\n",[m
+[31m-      "import numpy as np\n",[m
+[31m-      "import matplotlib.pyplot as plt\n",[m
+[31m-      "import Image\n",[m
+[31m-      "import scipy.ndimage\n",[m
+[31m-      "\n",[m
+[31m-      "from scipy.ndimage import convolve\n",[m
+[31m-      "from sklearn import linear_model, datasets, metrics\n",[m
+[31m-      "from sklearn.cross_validation import train_test_split\n",[m
+[31m-      "from sklearn.neural_network import BernoulliRBM\n",[m
+[31m-      "from sklearn.pipeline import Pipeline\n",[m
+[31m-      "from sklearn.grid_search import GridSearchCV\n",[m
+[31m-      "from sklearn.linear_model import LogisticRegression"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [],[m
+[31m-     "prompt_number": 1[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Defining functions & misc.\n",[m
+[31m-      "\n",[m
+[31m-      "perceptron_width = 16  # Should be a multiple of 8. If changed, also edit the line at # TODO: replace \"2\"\n",[m
+[31m-      "perceptron_count = perceptron_width * perceptron_width\n",[m
+[31m-      "pickles_suffix = \"_{0}x{0}.pickle\".format(perceptron_width)\n",[m
+[31m-      "\n",[m
+[31m-      "hidden_layer_width = 32\n",[m
+[31m-      "hidden_layer_count = hidden_layer_width * hidden_layer_width\n",[m
+[31m-      "\n",[m
+[31m-      "def nudge_dataset(X, Y):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    This produces a dataset 5 times bigger than the original one,\n",[m
+[31m-      "    by moving the 8x8 images in X around by 1px to left, right, down, up\n",[m
+[31m-      "    and keeping an original version of the images. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    direction_vectors = [\n",[m
+[31m-      "        [[0, 1, 0],\n",[m
+[31m-      "         [0, 0, 0],\n",[m
+[31m-      "         [0, 0, 0]],\n",[m
+[31m-      "\n",[m
+[31m-      "        [[0, 0, 0],\n",[m
+[31m-      "         [1, 0, 0],\n",[m
+[31m-      "         [0, 0, 0]],\n",[m
+[31m-      "\n",[m
+[31m-      "        [[0, 0, 0],\n",[m
+[31m-      "         [0, 0, 1],\n",[m
+[31m-      "         [0, 0, 0]],\n",[m
+[31m-      "\n",[m
+[31m-      "        [[0, 0, 0],\n",[m
+[31m-      "         [0, 0, 0],\n",[m
+[31m-      "         [0, 1, 0]]]\n",[m
+[31m-      "\n",[m
+[31m-      "    shift = lambda x, w: convolve(x.reshape((perceptron_width, perceptron_width)), mode='constant',\n",[m
+[31m-      "                                  weights=w).ravel()\n",[m
+[31m-      "    X = np.concatenate([X] +\n",[m
+[31m-      "                       [np.apply_along_axis(shift, 1, X, vector)\n",[m
+[31m-      "                        for vector in direction_vectors])\n",[m
+[31m-      "    Y = np.concatenate([Y for _ in range(5)], axis=0)\n",[m
+[31m-      "    return X, Y\n",[m
+[31m-      "\n",[m
+[31m-      "def shuffle_dataset(X, Y):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Shuffle two lists keeping their elements\n",[m
+[31m-      "    associated: Xi == Yi. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    z = zip(X, Y)\n",[m
+[31m-      "    random.shuffle(z)\n",[m
+[31m-      "    return zip(*z)\n",[m
+[31m-      "\n",[m
+[31m-      "def resample_img(img, currentWidth=128, newWidth=perceptron_width):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Changes the size of an image. \n",[m
+[31m-      "    Yet, if the image needs to be scaled up, \n",[m
+[31m-      "    the image will only enlarge by a factor of 2 by 2.\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    inv_ratio = currentWidth/newWidth\n",[m
+[31m-      "    if (inv_ratio < 1):\n",[m
+[31m-      "        return scipy.ndimage.zoom(img, 2, order=1)  # TODO: replace \"2\" by int(1/inv_ratio)\n",[m
+[31m-      "    else:\n",[m
+[31m-      "        return img.reshape([newWidth, inv_ratio, newWidth, inv_ratio]).mean(3).mean(1)\n",[m
+[31m-      "\n",[m
+[31m-      "def scale_elements_values_from_0_to_1(arr):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Scale any multidimensional array's items' values\n",[m
+[31m-      "    from 0 to 1, keeping relative proportions. \n",[m
+[31m-      "    Each item needs to be a number. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    amax = np.amax(arr)\n",[m
+[31m-      "    amin = np.amin(arr)\n",[m
+[31m-      "    arr = np.subtract(arr, amin)\n",[m
+[31m-      "    P=1/(amax-amin)\n",[m
+[31m-      "    arr = P*np.array(arr)\n",[m
+[31m-      "    return arr\n",[m
+[31m-      "\n",[m
+[31m-      "def rectify(img, strong_rectification=True):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Rectify from 0 to 1 each element of \n",[m
+[31m-      "    any multidimensional array. \n",[m
+[31m-      "    \n",[m
+[31m-      "    If strong_rectification is set to true, \n",[m
+[31m-      "    values will be rectified from 0.35 to 0.7, \n",[m
+[31m-      "    and values equal to that will then be\n",[m
+[31m-      "    remapped to 0 and 1. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    if (strong_rectification):\n",[m
+[31m-      "        def rectify_f(pixel):\n",[m
+[31m-      "            if (pixel <= 0.35):\n",[m
+[31m-      "                pixel = 0.0\n",[m
+[31m-      "            elif (pixel >= 0.7):\n",[m
+[31m-      "                pixel = 1.0\n",[m
+[31m-      "            return pixel\n",[m
+[31m-      "    else:\n",[m
+[31m-      "        def rectify_f(pixel):\n",[m
+[31m-      "            if (pixel < 0.0):\n",[m
+[31m-      "                pixel = 0.0\n",[m
+[31m-      "            elif (pixel > 1.0):\n",[m
+[31m-      "                pixel = 1.0\n",[m
+[31m-      "            return pixel\n",[m
+[31m-      "    rectify_f = np.vectorize(rectify_f)\n",[m
+[31m-      "    \n",[m
+[31m-      "    return rectify_f(img)\n",[m
+[31m-      "\n",[m
+[31m-      "def contrast(img, do_rectify=True):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Apply a custom contrast filter to any multidimensional \n",[m
+[31m-      "    array which elements' values range from 0 to 1. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    def contrast_f(pixel):\n",[m
+[31m-      "        # Those values are set to fit my webcam\n",[m
+[31m-      "        pixel = 1.4/math.pi*math.atan(4*(pixel-0.49))+0.5\n",[m
+[31m-      "        if (pixel < 0.35):\n",[m
+[31m-      "            pixel = 0.0\n",[m
+[31m-      "        elif (pixel > 0.7):\n",[m
+[31m-      "            pixel = 1.0\n",[m
+[31m-      "        return pixel\n",[m
+[31m-      "    contrast_f = np.vectorize(contrast_f)\n",[m
+[31m-      "    \n",[m
+[31m-      "    return rectify(contrast_f(img), do_rectify)\n",[m
+[31m-      "    \n",[m
+[31m-      "def grayscale_img(color_image, inverse=True, do_contrast=False):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Convert an RGB image (3D array) to a\n",[m
+[31m-      "    grayscale 2D array, which elements range\n",[m
+[31m-      "    from 0 to 1. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    img = np.array(color_image)\n",[m
+[31m-      "    \n",[m
+[31m-      "    if (inverse):\n",[m
+[31m-      "        def iavg(a):\n",[m
+[31m-      "            return (255.0 - (np.average(a)))\n",[m
+[31m-      "    else:\n",[m
+[31m-      "        def iavg(a):\n",[m
+[31m-      "            return (np.average(a))\n",[m
+[31m-      "    \n",[m
+[31m-      "    grayscale = np.zeros((img.shape[0], img.shape[1]))\n",[m
+[31m-      "    for rownum in range(len(img)):\n",[m
+[31m-      "        for colnum in range(len(img[rownum])):\n",[m
+[31m-      "            grayscale[rownum][colnum] = iavg(img[rownum][colnum])\n",[m
+[31m-      "\n",[m
+[31m-      "    grayscale = scale_elements_values_from_0_to_1(grayscale)\n",[m
+[31m-      "    \n",[m
+[31m-      "    if (do_contrast):\n",[m
+[31m-      "        grayscale = contrast(grayscale)\n",[m
+[31m-      "    \n",[m
+[31m-      "    return grayscale\n",[m
+[31m-      "\n",[m
+[31m-      "def load_grayscale_img(path=\"7.jpg\", currentWidth=8, wantedWidth=perceptron_width):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Load an image to a grayscale 2D array with \n",[m
+[31m-      "    elements' values ranging from 0 to 1. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    im = Image.open(path)\n",[m
+[31m-      "    return resample_img(grayscale_img(im), currentWidth, newWidth=wantedWidth)\n",[m
+[31m-      "\n",[m
+[31m-      "def load_default_dataset():\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Fancy \"datasets.load_digits()\". Returns a list\n",[m
+[31m-      "    of flat arrays (lists) representing grayscale images, and \n",[m
+[31m-      "    their associated labels. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    images = []\n",[m
+[31m-      "    labels = []\n",[m
+[31m-      "    \n",[m
+[31m-      "    pickle_path = \"dataset_pickles\\dflt_dataset{}\".format(pickles_suffix)\n",[m
+[31m-      "    if (os.path.exists(pickle_path)):\n",[m
+[31m-      "        with open(pickle_path) as f:\n",[m
+[31m-      "            images, labels = pickle.load(f)\n",[m
+[31m-      "    else:\n",[m
+[31m-      "        digits_set = datasets.load_digits()\n",[m
+[31m-      "        original_images = np.asarray(digits_set.data, 'float32')\n",[m
+[31m-      "\n",[m
+[31m-      "        if(perceptron_width != 8):  # Resampling if needed\n",[m
+[31m-      "            xi=0\n",[m
+[31m-      "            for x in original_images:\n",[m
+[31m-      "                this_image = resample_img(x.reshape(8, 8), currentWidth=8, newWidth=perceptron_width).flatten()\n",[m
+[31m-      "                images.append(this_image)\n",[m
+[31m-      "                # TODO: REM\n",[m
+[31m-      "                # print(x.reshape(8, 8))\n",[m
+[31m-      "                # print(this_image.reshape(16, 16))\n",[m
+[31m-      "                xi += 1\n",[m
+[31m-      "        images = (images - np.min(images, 0)) / (np.max(images, 0) + 0.0001)  # 0-1 scaling\n",[m
+[31m-      "        labels = digits_set.target\n",[m
+[31m-      "        \n",[m
+[31m-      "        with open(pickle_path, 'w') as f:\n",[m
+[31m-      "            pickle.dump([images, labels], f)\n",[m
+[31m-      "            print()\n",[m
+[31m-      "    \n",[m
+[31m-      "    return images, labels\n",[m
+[31m-      "    \n",[m
+[31m-      "def load_fnt_dataset():\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Loads the Chars74K's \"Fnt\" dataset. Returns a list\n",[m
+[31m-      "    of flat arrays (lists) representing grayscale images, and \n",[m
+[31m-      "    their associated labels. \n",[m
+[31m-      "    Can be downloaded from: http://www.ee.surrey.ac.uk/CVSSP/demos/chars74k/\n",[m
+[31m-      "    Direct download link: http://www.ee.surrey.ac.uk/CVSSP/demos/chars74k/EnglishFnt.tgz\n",[m
+[31m-      "    TODO: CITE in http://scholar.google.co.uk/citations?hl=en&user=RzL_a1gAAAAJ&view_op=list_works\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    images = []\n",[m
+[31m-      "    labels = []\n",[m
+[31m-      "    \n",[m
+[31m-      "    for i in xrange(0+1, 1016+1):\n",[m
+[31m-      "        for x in xrange(0+1, 9+1+1):    \n",[m
+[31m-      "            folder_name = \"Sample{0:03d}\".format(x)\n",[m
+[31m-      "            file_name_prefix = \"img{0:03d}-\".format(x)\n",[m
+[31m-      "        \n",[m
+[31m-      "            file_name = \"{0}{1:05d}.png\".format(file_name_prefix, i)\n",[m
+[31m-      "            img_path=\"fnt_dataset\\{}\\{}\".format(folder_name, file_name)\n",[m
+[31m-      "            \n",[m
+[31m-      "            pickle_file_name = \"{}{}\".format(file_name[0:-4], pickles_suffix)\n",[m
+[31m-      "            pickle_path = \"dataset_pickles\\{}\".format(pickle_file_name)\n",[m
+[31m-      "            \n",[m
+[31m-      "            if (os.path.exists(pickle_path)):\n",[m
+[31m-      "                with open(pickle_path) as f:\n",[m
+[31m-      "                    this_data_img, this_target_label = pickle.load(f)\n",[m
+[31m-      "            else:\n",[m
+[31m-      "                this_data_img = load_grayscale_img(path=img_path, currentWidth=128, wantedWidth=perceptron_width).flatten()\n",[m
+[31m-      "                this_target_label = x-1\n",[m
+[31m-      "                with open(pickle_path, 'w') as f:\n",[m
+[31m-      "                    pickle.dump([this_data_img, this_target_label], f)\n",[m
+[31m-      "            \n",[m
+[31m-      "            images.append(this_data_img)\n",[m
+[31m-      "            labels.append(this_target_label)\n",[m
+[31m-      "            \n",[m
+[31m-      "    return images, labels\n",[m
+[31m-      "\n",[m
+[31m-      "def nudge_image(grayscale_img, displacement_width=3):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    This returns a list of images, where each images is  \n",[m
+[31m-      "    the original one translated by a range of \n",[m
+[31m-      "    \"(displacement_width - 1)/2\" in +/- X and Y from the \n",[m
+[31m-      "    center.\n",[m
+[31m-      "    A count of \"displacement_width * displacement_width\"\n",[m
+[31m-      "    images are yielded. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    if (displacement_width % 2 == 1):\n",[m
+[31m-      "        displacement_width += 1  # Must be uneven to have a center\n",[m
+[31m-      "    imgs = [grayscale_img]\n",[m
+[31m-      "    \n",[m
+[31m-      "    # Creating some displacement vectors, origin is at center of matrixes. \n",[m
+[31m-      "    direction_vectors = []\n",[m
+[31m-      "    for i in xrange(displacement_width):\n",[m
+[31m-      "        for j in xrange(displacement_width):\n",[m
+[31m-      "            direction_matrix = np.zeros((displacement_width, displacement_width))\n",[m
+[31m-      "            direction_matrix[i][j] = 1\n",[m
+[31m-      "            direction_vectors.append(direction_matrix)\n",[m
+[31m-      "\n",[m
+[31m-      "    shift = lambda x, w: convolve(x.reshape((perceptron_width, perceptron_width)), mode='constant',\n",[m
+[31m-      "                                  weights=w).ravel()\n",[m
+[31m-      "    return np.concatenate([np.apply_along_axis(shift, 1, imgs, vector)\n",[m
+[31m-      "                        for vector in direction_vectors])\n",[m
+[31m-      "\n",[m
+[31m-      "def predict_2D_image(img, classifier, show_plot=False):\n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    Predict and (optionnaly) show an image\n",[m
+[31m-      "    from a trained scikit-learn classifier. \n",[m
+[31m-      "    \"\"\"\n",[m
+[31m-      "    \n",[m
+[31m-      "    def max_pooling_prediction(grayscale_img, classifier):\n",[m
+[31m-      "        imgs = nudge_image(grayscale_img)\n",[m
+[31m-      "\n",[m
+[31m-      "        def get_confidences_and_prediction(img, classifier):\n",[m
+[31m-      "            \"\"\"\n",[m
+[31m-      "            Returns the best confidence, the other confidences\n",[m
+[31m-      "            and the prection from the best confidence. \n",[m
+[31m-      "            \"\"\"\n",[m
+[31m-      "            prediction = classifier.predict(img.flatten())[0]\n",[m
+[31m-      "            decision_function_vals = classifier.predict_log_proba(img.flatten())[0]\n",[m
+[31m-      "            confidence = np.amax(decision_function_vals)\n",[m
+[31m-      "            assert prediction == np.argmax(decision_function_vals), (\n",[m
+[31m-      "                \"Is not the prediction supposed to take the most confident label association?\")\n",[m
+[31m-      "            return confidence, decision_function_vals, prediction\n",[m
+[31m-      "\n",[m
+[31m-      "        parallel_confidences = []\n",[m
+[31m-      "        parallel_decision_function_vals = []\n",[m
+[31m-      "        parallel_predictions = []\n",[m
+[31m-      "\n",[m
+[31m-      "        for img in imgs:\n",[m
+[31m-      "            tmp = get_confidences_and_prediction(img, classifier)\n",[m
+[31m-      "            parallel_confidences.append(tmp[0])\n",[m
+[31m-      "            parallel_decision_function_vals.append(tmp[1])\n",[m
+[31m-      "            parallel_predictions.append(tmp[2])\n",[m
+[31m-      "\n",[m
+[31m-      "        best_nudged_index = np.argmax(parallel_confidences)\n",[m
+[31m-      "        prediction = parallel_predictions[best_nudged_index]\n",[m
+[31m-      "        decision_function_vals = parallel_decision_function_vals[best_nudged_index]\n",[m
+[31m-      "        best_nudged_img = imgs[best_nudged_index].reshape(perceptron_width, perceptron_width)\n",[m
+[31m-      "\n",[m
+[31m-      "        return (prediction, decision_function_vals, best_nudged_img)\n",[m
+[31m-      "    \n",[m
+[31m-      "    #TODO:\n",[m
+[31m-      "    # prediction, decision_function_vals, img = max_pooling_prediction(img.flatten(), classifier)\n",[m
+[31m-      "    prediction = classifier.predict(img.flatten())[0]\n",[m
+[31m-      "    \n",[m
+[31m-      "    if (show_plot):\n",[m
+[31m-      "        bars_width = 0.8\n",[m
+[31m-      "        #TODO:\n",[m
+[31m-      "        # decision_function_vals = classifier.decision_function(img.flatten())[0]\n",[m
+[31m-      "        decision_function_vals = classifier.decision_function(img.flatten())[0]\n",[m
+[31m-      "        \n",[m
+[31m-      "        confidence_labels = range(len(decision_function_vals))\n",[m
+[31m-      "        confidence_labels_pos = np.arange(bars_width/2, len(decision_function_vals)+bars_width/2, 1)\n",[m
+[31m-      "        \n",[m
+[31m-      "        plt.subplots_adjust(hspace=0.5)\n",[m
+[31m-      "        \n",[m
+[31m-      "        ax1 = plt.subplot(2, 1, 1)\n",[m
+[31m-      "        ax1.imshow(img, cmap=plt.cm.gray_r,\n",[m
+[31m-      "            interpolation='nearest')\n",[m
+[31m-      "        ax1.set_title(\"Predicted value: {}\".format(prediction), fontsize=22)\n",[m
+[31m-      "\n",[m
+[31m-      "        ax2 = plt.subplot(2, 1, 2)\n",[m
+[31m-      "        ax2.bar(confidence_labels, decision_function_vals, bars_width)\n",[m
+[31m-      "        # plt.suptitle('Confidence decision function for each label')\n",[m
+[31m-      "        ax2.set_title('Confidence decision function for each label', fontsize=22)\n",[m
+[31m-      "        plt.ylabel('Confidence')\n",[m
+[31m-      "        plt.xlabel('Label')\n",[m
+[31m-      "        ax2.plot([0, 10], [0, 0], 'k-', lw=2)\n",[m
+[31m-      "\n",[m
+[31m-      "        ax2.set_xticks(confidence_labels_pos)\n",[m
+[31m-      "        ax2.set_xticklabels(confidence_labels)\n",[m
+[31m-      "        \n",[m
+[31m-      "        plt.show()\n",[m
+[31m-      "        \n",[m
+[31m-      "        # #TODO: \n",[m
+[31m-      "        # img_transformed = rbm.transform(img.flatten())\n",[m
+[31m-      "        # img_transformed = img_transformed.reshape(hidden_layer_width, hidden_layer_width)\n",[m
+[31m-      "        \n",[m
+[31m-      "        # plt.imshow(img_transformed, cmap=plt.cm.gray_r,\n",[m
+[31m-      "        #     interpolation='nearest')\n",[m
+[31m-      "        # plt.show()\n",[m
+[31m-      "    return prediction\n"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [],[m
+[31m-     "prompt_number": 35[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Load Data\n",[m
+[31m-      "\n",[m
+[31m-      "datasets_path = 'dataset_pickles\\\\datasets{}'.format(pickles_suffix)\n",[m
+[31m-      "if (os.path.exists(datasets_path)):\n",[m
+[31m-      "    with open(datasets_path) as f:\n",[m
+[31m-      "        X, Y = pickle.load(f)\n",[m
+[31m-      "    \n",[m
+[31m-      "else: \n",[m
+[31m-      "    print(\"Loading default dataset...\")\n",[m
+[31m-      "    x_dflt, y_dflt = load_default_dataset()\n",[m
+[31m-      "    # print(x_dflt[0])\n",[m
+[31m-      "    # print(x_dflt[0].reshape(perceptron_width, perceptron_width))\n",[m
+[31m-      "    \n",[m
+[31m-      "    print(\"Loading fnt dataset...\")\n",[m
+[31m-      "    x_fnt, y_fnt = load_fnt_dataset()\n",[m
+[31m-      "    # print(x_fnt[0].reshape(perceptron_width, perceptron_width))\n",[m
+[31m-      "\n",[m
+[31m-      "    print(\"Appending datasets...\")\n",[m
+[31m-      "    X, Y = np.append(x_dflt, x_fnt, axis=0), np.append(y_dflt, y_fnt, axis=0)\n",[m
+[31m-      "\n",[m
+[31m-      "    # Saving the objects:\n",[m
+[31m-      "    with open(datasets_path, 'w') as f:\n",[m
+[31m-      "        pickle.dump([X, Y], f)\n",[m
+[31m-      "\n",[m
+[31m-      "X, Y = nudge_dataset(X, Y) \n",[m
+[31m-      "# X, Y = shuffle_dataset(X, Y)\n",[m
+[31m-      "\n",[m
+[31m-      "print(\"train_test_split...\")\n",[m
+[31m-      "X_train, X_test, Y_train, Y_test = train_test_split(X, Y,\n",[m
+[31m-      "                                                    test_size=0.4,\n",[m
+[31m-      "                                                    random_state=42)\n",[m
+[31m-      "\n",[m
+[31m-      "\n",[m
+[31m-      "print(\"Setup Done:\")\n",[m
+[31m-      "print(\"Total images: {}\".format(len(X)))\n",[m
+[31m-      "print(\"Total training images: {}\".format(len(X_train)))\n",[m
+[31m-      "print(\"Total testing images: {}\".format(len(X_test)))"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "train_test_split...\n",[m
+[31m-        "Setup Done:"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "\n",[m
+[31m-        "Total images: 59785\n",[m
+[31m-        "Total training images: 35871\n",[m
+[31m-        "Total testing images: 23914\n"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 3[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Cross validation (CV) to find hyper-parameters\n",[m
+[31m-      "\n",[m
+[31m-      "# The Cross Validation technique used is inspired from: \n",[m
+[31m-      "# http://www.pyimagesearch.com/2014/06/23/applying-deep-learning-rbm-mnist-using-python/\n",[m
+[31m-      "\n",[m
+[31m-      "# If a CV has already been done with the actual \"hidden_layer_count\" variable.\n",[m
+[31m-      "CV_already_done = True\n",[m
+[31m-      "\n",[m
+[31m-      "if (not CV_already_done):\n",[m
+[31m-      "    # initialize the RBM + Logistic Regression pipeline\n",[m
+[31m-      "    rbm = BernoulliRBM(random_state=1, verbose=True)\n",[m
+[31m-      "    logistic = LogisticRegression()\n",[m
+[31m-      "    classifier = Pipeline(steps=[('rbm', rbm), ('logistic', logistic)])\n",[m
+[31m-      "\n",[m
+[31m-      "    # perform a grid search on the learning rate, number of\n",[m
+[31m-      "    # iterations, and number of components on the RBM and\n",[m
+[31m-      "    # C for Logistic Regression\n",[m
+[31m-      "    print(\"SEARCHING RBM AND LOGISTIC REGRESSION'S HYPER-PARAMETERS\")\n",[m
+[31m-      "    # The following params already have been edited manually \n",[m
+[31m-      "    # to then wiggle between these remaining values. \n",[m
+[31m-      "    params = {\n",[m
+[31m-      "    \"rbm__learning_rate\": [0.005, 0.01],\n",[m
+[31m-      "    \"rbm__n_iter\": [45],\n",[m
+[31m-      "    \"rbm__n_components\": [hidden_layer_count],\n",[m
+[31m-      "    \"logistic__C\": [500.0, 1000.0]}\n",[m
+[31m-      "\n",[m
+[31m-      "    # perform a grid search over the parameter\n",[m
+[31m-      "    gs = GridSearchCV(classifier, params, n_jobs = -1, verbose = 1)\n",[m
+[31m-      "    gs.fit(X_train, Y_train)\n",[m
+[31m-      "\n",[m
+[31m-      "    # print diagnostic information to the user and grab the\n",[m
+[31m-      "    # best model\n",[m
+[31m-      "    print(\"best score: %0.3f\" % (gs.best_score_))\n",[m
+[31m-      "    print(\"RBM + LOGISTIC REGRESSION'S HYPER-PARAMETERS\")\n",[m
+[31m-      "    \n",[m
+[31m-      "    CV_result = gs.best_estimator_.get_params()\n",[m
+[31m-      "    \n",[m
+[31m-      "else : \n",[m
+[31m-      "    # CV Results from a hidden_layer_count = 15. \n",[m
+[31m-      "    CV_result = {\n",[m
+[31m-      "        'logistic__penalty': 'l2',\n",[m
+[31m-      "        'rbm__verbose': True,\n",[m
+[31m-      "        'logistic__tol': 0.0001,\n",[m
+[31m-      "        'logistic__dual': False,\n",[m
+[31m-      "        'logistic__fit_intercept': True,\n",[m
+[31m-      "        'rbm': BernoulliRBM(batch_size = 10, learning_rate = 0.01, n_components = hidden_layer_count,\n",[m
+[31m-      "            n_iter = 45,\n",[m
+[31m-      "            random_state = 1, verbose = True),\n",[m
+[31m-      "        'rbm__n_iter': 45,\n",[m
+[31m-      "        'rbm__learning_rate': 0.01,\n",[m
+[31m-      "        'logistic__class_weight': None,\n",[m
+[31m-      "        'logistic': LogisticRegression(C = 1000.0, class_weight = None, dual = False,\n",[m
+[31m-      "            fit_intercept = True, intercept_scaling = 1, penalty = 'l2',\n",[m
+[31m-      "            random_state = None, tol = 0.0001),\n",[m
+[31m-      "        'rbm__n_components': 225,\n",[m
+[31m-      "        'logistic__C': 1000.0,\n",[m
+[31m-      "        'logistic__random_state': None,\n",[m
+[31m-      "        'rbm__batch_size': 10,\n",[m
+[31m-      "        'rbm__random_state': 1,\n",[m
+[31m-      "        'logistic__intercept_scaling': 1\n",[m
+[31m-      "    }\n",[m
+[31m-      "\n",[m
+[31m-      "print(CV_result[\"rbm\"])\n",[m
+[31m-      "print(CV_result[\"logistic\"])\n"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "BernoulliRBM(batch_size=10, learning_rate=0.01, n_components=1024, n_iter=45,\n",[m
+[31m-        "       random_state=1, verbose=True)\n",[m
+[31m-        "LogisticRegression(C=1000.0, class_weight=None, dual=False,\n",[m
+[31m-        "          fit_intercept=True, intercept_scaling=1, penalty='l2',\n",[m
+[31m-        "          random_state=None, tol=0.0001)\n"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 4[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Training from CV result parameters and evaluation. \n",[m
+[31m-      "\n",[m
+[31m-      "RBM_classifier_path = 'RBM_classifier_{}_{}{}'.format(\n",[m
+[31m-      "    hidden_layer_count, CV_result[\"rbm\"].n_iter, pickles_suffix)\n",[m
+[31m-      "\n",[m
+[31m-      "if (os.path.exists(RBM_classifier_path)):\n",[m
+[31m-      "    with open(RBM_classifier_path) as f:\n",[m
+[31m-      "        rbm, logistic, classifier, metrics_results = pickle.load(f)\n",[m
+[31m-      "else: \n",[m
+[31m-      "    rbm = CV_result[\"rbm\"]\n",[m
+[31m-      "    logistic = CV_result[\"logistic\"]\n",[m
+[31m-      "    classifier = Pipeline(steps=[('rbm', rbm), ('logistic', logistic)])\n",[m
+[31m-      "\n",[m
+[31m-      "    # Training RBM-Logistic Pipeline\n",[m
+[31m-      "    classifier.fit(X_train, Y_train)\n",[m
+[31m-      "    \n",[m
+[31m-      "    # Evaluation\n",[m
+[31m-      "    metrics_results = metrics.classification_report(\n",[m
+[31m-      "            Y_test,\n",[m
+[31m-      "            classifier.predict(X_test))\n",[m
+[31m-      "\n",[m
+[31m-      "    # Saving the objects:\n",[m
+[31m-      "    with open(RBM_classifier_path, 'w') as f:\n",[m
+[31m-      "        pickle.dump([rbm, logistic, classifier, metrics_results], f)\n",[m
+[31m-      "\n",[m
+[31m-      "print()\n",[m
+[31m-      "print(\"Logistic regression using RBM features:\\n{}\\n\".format(\n",[m
+[31m-      "    metrics_results))\n"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "\n",[m
+[31m-        "Logistic regression using RBM features:\n",[m
+[31m-        "             precision    recall  f1-score   support\n",[m
+[31m-        "\n",[m
+[31m-        "          0       0.98      0.99      0.98      2387\n",[m
+[31m-        "          1       0.97      0.98      0.98      2419\n",[m
+[31m-        "          2       0.99      0.98      0.99      2425\n",[m
+[31m-        "          3       0.97      0.96      0.96      2475\n",[m
+[31m-        "          4       0.99      0.99      0.99      2341\n",[m
+[31m-        "          5       0.97      0.97      0.97      2371\n",[m
+[31m-        "          6       0.97      0.97      0.97      2333\n",[m
+[31m-        "          7       0.98      0.99      0.99      2375\n",[m
+[31m-        "          8       0.95      0.96      0.95      2384\n",[m
+[31m-        "          9       0.97      0.97      0.97      2404\n",[m
+[31m-        "\n",[m
+[31m-        "avg / total       0.98      0.98      0.98     23914\n",[m
+[31m-        "\n",[m
+[31m-        "\n"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 5[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Predicting from machine's vision\n",[m
+[31m-      "\n",[m
+[31m-      "import time\n",[m
+[31m-      "import sys\n",[m
+[31m-      "import threading\n",[m
+[31m-      "import multiprocessing\n",[m
+[31m-      "import thread\n",[m
+[31m-      "import cv2\n",[m
+[31m-      "\n",[m
+[31m-      "from threading import Thread\n",[m
+[31m-      "\n",[m
+[31m-      "process_next_image = True\n",[m
+[31m-      "\n",[m
+[31m-      "def convert_image_frame(local_img_frame):\n",[m
+[31m-      "    reshaped_img = grayscale_img(local_img_frame, inverse=True, do_contrast=True)\n",[m
+[31m-      "    reshaped_img = reshaped_img.reshape(\n",[m
+[31m-      "        [perceptron_width, reshaped_img.shape[0]/perceptron_width, perceptron_width, reshaped_img.shape[1]/perceptron_width]\n",[m
+[31m-      "        ).mean(3).mean(1)\n",[m
+[31m-      "    return reshaped_img\n",[m
+[31m-      "\n",[m
+[31m-      "def grayscale_image_and_predict(frame):\n",[m
+[31m-      "    global process_next_image\n",[m
+[31m-      "    \n",[m
+[31m-      "    local_img = convert_image_frame(frame)\n",[m
+[31m-      "    prediction = predict_2D_image(\n",[m
+[31m-      "        local_img, \n",[m
+[31m-      "        classifier, \n",[m
+[31m-      "        show_plot=True\n",[m
+[31m-      "        )\n",[m
+[31m-      "    process_next_image=True\n",[m
+[31m-      "    \n",[m
+[31m-      "cv2.namedWindow('Normal view, press ESC to exit')\n",[m
+[31m-      "vc = cv2.VideoCapture(0)\n",[m
+[31m-      "\n",[m
+[31m-      "if vc.isOpened():  # try to get the first frame\n",[m
+[31m-      "    rval, frame = vc.read()\n",[m
+[31m-      "else:\n",[m
+[31m-      "    rval = False\n",[m
+[31m-      "\n",[m
+[31m-      "while rval:\n",[m
+[31m-      "    cv2.imshow(\"Normal view, press ESC to exit\", frame)\n",[m
+[31m-      "    \n",[m
+[31m-      "    time.sleep(0.15)  # Delay \n",[m
+[31m-      "    \n",[m
+[31m-      "    rval, frame = vc.read()\n",[m
+[31m-      "    \n",[m
+[31m-      "    if (process_next_image):\n",[m
+[31m-      "        process_next_image = False\n",[m
+[31m-      "        threaded_func = Thread(\n",[m
+[31m-      "            target=grayscale_image_and_predict, \n",[m
+[31m-      "            args=([frame])\n",[m
+[31m-      "            ).start()\n",[m
+[31m-      "    \n",[m
+[31m-      "    key = cv2.waitKey(20)\n",[m
+[31m-      "    if key == 27: # exit on ESC\n",[m
+[31m-      "        #TODO: join threads and stop. \n",[m
+[31m-      "        break\n",[m
+[31m-      "\n",[m
+[31m-      "# Free camera resources\n",[m
+[31m-      "#TODO: try/except this\n",[m
+[31m-      "cv2.destroyWindow(\"Normal view, press ESC to exit\")\n",[m
+[31m-      "del vc\n",[m
+[31m-      "\n",[m
+[31m-      "print(\"Done.\")"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "Done.\n"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 6[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "raise Exception(\"Done.\")"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "ename": "Exception",[m
+[31m-       "evalue": "Done.",[m
+[31m-       "output_type": "pyerr",[m
+[31m-       "traceback": [[m
+[31m-        "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n\u001b[1;31mException\u001b[0m                                 Traceback (most recent call last)",[m
+[31m-        "\u001b[1;32m<ipython-input-7-bd8e67023fca>\u001b[0m in \u001b[0;36m<module>\u001b[1;34m()\u001b[0m\n\u001b[1;32m----> 1\u001b[1;33m \u001b[1;32mraise\u001b[0m \u001b[0mException\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;34m\"Done.\"\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0m",[m
+[31m-        "\u001b[1;31mException\u001b[0m: Done."[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 7[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Predictions of images outside trained datasets\n",[m
+[31m-      "\n",[m
+[31m-      "show_plots = True\n",[m
+[31m-      "\n",[m
+[31m-      "imgs = []\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\2.jpg\", currentWidth=8, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\2_2.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\2_3.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\3.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\3_1.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\3_2.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\7.jpg\", currentWidth=8, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\7_1.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\7_2.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(load_grayscale_img(path=\"more_test_datas\\\\9.jpg\", currentWidth=16, wantedWidth=perceptron_width))\n",[m
+[31m-      "imgs.append(X_test[1001])\n",[m
+[31m-      "imgs.append(X_test[2020])\n",[m
+[31m-      "imgs.append(X_test[3004])\n",[m
+[31m-      "imgs.append(X_test[4005])\n",[m
+[31m-      "imgs.append(X_test[5009])\n",[m
+[31m-      "\n",[m
+[31m-      "for img in imgs:\n",[m
+[31m-      "    predicted_num = predict_2D_image(\n",[m
+[31m-      "        img, \n",[m
+[31m-      "        classifier, \n",[m
+[31m-      "        show_plot=show_plots\n",[m
+[31m-      "        )\n",[m
+[31m-      "    print(predicted_num, np.argmax(classifier.predict_log_proba([img.flatten()])))\n",[m
+[31m-      "\n",[m
+[31m-      "    "[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        "2 2\n",[m
+[31m-        "2"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 2\n",[m
+[31m-        "5"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 5\n",[m
+[31m-        "3"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 3\n",[m
+[31m-        "3"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 3\n",[m
+[31m-        "3"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 3\n",[m
+[31m-        "7"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 7\n",[m
+[31m-        "7"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 7\n",[m
+[31m-        "7"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 7\n",[m
+[31m-        "9"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "output_type": "stream",[m
+[31m-       "stream": "stdout",[m
+[31m-       "text": [[m
+[31m-        " 9\n"[m
+[31m-       ][m
+[31m-      },[m
+[31m-      {[m
+[31m-       "ename": "TypeError",[m
+[31m-       "evalue": "Invalid dimensions for image data",[m
+[31m-       "output_type": "pyerr",[m
+[31m-       "traceback": [[m
+[31m-        "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n\u001b[1;31mTypeError\u001b[0m                                 Traceback (most recent call last)",[m
+[31m-        "\u001b[1;32m<ipython-input-36-9d3803f9b1dd>\u001b[0m in \u001b[0;36m<module>\u001b[1;34m()\u001b[0m\n\u001b[0;32m     25\u001b[0m         \u001b[0mimg\u001b[0m\u001b[1;33m,\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m     26\u001b[0m         \u001b[0mclassifier\u001b[0m\u001b[1;33m,\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[1;32m---> 27\u001b[1;33m         \u001b[0mshow_plot\u001b[0m\u001b[1;33m=\u001b[0m\u001b[0mshow_plots\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0m\u001b[0;32m     28\u001b[0m         )\n\u001b[0;32m     29\u001b[0m     \u001b[1;32mprint\u001b[0m\u001b[1;33m(\u001b[0m\u001b[0mpredicted_num\u001b[0m\u001b[1;33m,\u001b[0m \u001b[0mnp\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0margmax\u001b[0m\u001b[1;33m(\u001b[0m\u001b[0mclassifier\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mpredict_log_proba\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;33m[\u001b[0m\u001b[0mimg\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mflatten\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m]\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n",[m
+[31m-        "\u001b[1;32m<ipython-input-35-b6a9ee78b920>\u001b[0m in \u001b[0;36mpredict_2D_image\u001b[1;34m(img, classifier, show_plot)\u001b[0m\n\u001b[0;32m    306\u001b[0m         \u001b[0max1\u001b[0m \u001b[1;33m=\u001b[0m \u001b[0mplt\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0msubplot\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;36m2\u001b[0m\u001b[1;33m,\u001b[0m \u001b[1;36m1\u001b[0m\u001b[1;33m,\u001b[0m \u001b[1;36m1\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m    307\u001b[0m         ax1.imshow(img, cmap=plt.cm.gray_r,\n\u001b[1;32m--> 308\u001b[1;33m             interpolation='nearest')\n\u001b[0m\u001b[0;32m    309\u001b[0m         \u001b[0max1\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mset_title\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;34m\"Predicted value: {}\"\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mformat\u001b[0m\u001b[1;33m(\u001b[0m\u001b[0mprediction\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m,\u001b[0m \u001b[0mfontsize\u001b[0m\u001b[1;33m=\u001b[0m\u001b[1;36m22\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m    310\u001b[0m \u001b[1;33m\u001b[0m\u001b[0m\n",[m
+[31m-        "\u001b[1;32mC:\\Users\\Guillaume\\AppData\\Local\\Enthought\\Canopy\\User\\lib\\site-packages\\matplotlib\\axes\\_axes.pyc\u001b[0m in \u001b[0;36mimshow\u001b[1;34m(self, X, cmap, norm, aspect, interpolation, alpha, vmin, vmax, origin, extent, shape, filternorm, filterrad, imlim, resample, url, **kwargs)\u001b[0m\n\u001b[0;32m   4643\u001b[0m                        filterrad=filterrad, resample=resample, **kwargs)\n\u001b[0;32m   4644\u001b[0m \u001b[1;33m\u001b[0m\u001b[0m\n\u001b[1;32m-> 4645\u001b[1;33m         \u001b[0mim\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mset_data\u001b[0m\u001b[1;33m(\u001b[0m\u001b[0mX\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0m\u001b[0;32m   4646\u001b[0m         \u001b[0mim\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mset_alpha\u001b[0m\u001b[1;33m(\u001b[0m\u001b[0malpha\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m   4647\u001b[0m         \u001b[1;32mif\u001b[0m \u001b[0mim\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mget_clip_path\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;33m)\u001b[0m \u001b[1;32mis\u001b[0m \u001b[0mNone\u001b[0m\u001b[1;33m:\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n",[m
+[31m-        "\u001b[1;32mC:\\Users\\Guillaume\\AppData\\Local\\Enthought\\Canopy\\User\\lib\\site-packages\\matplotlib\\image.pyc\u001b[0m in \u001b[0;36mset_data\u001b[1;34m(self, A)\u001b[0m\n\u001b[0;32m    436\u001b[0m         if (self._A.ndim not in (2, 3) or\n\u001b[0;32m    437\u001b[0m             (self._A.ndim == 3 and self._A.shape[-1] not in (3, 4))):\n\u001b[1;32m--> 438\u001b[1;33m             \u001b[1;32mraise\u001b[0m \u001b[0mTypeError\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;34m\"Invalid dimensions for image data\"\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0m\u001b[0;32m    439\u001b[0m \u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m    440\u001b[0m         \u001b[0mself\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0m_imcache\u001b[0m \u001b[1;33m=\u001b[0m \u001b[0mNone\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n",[m
+[31m-        "\u001b[1;31mTypeError\u001b[0m: Invalid dimensions for image data"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 36[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "###############################################################################\n",[m
+[31m-      "# Plotting 1st RBM hidden layer's weight matrix\n",[m
+[31m-      "\n",[m
+[31m-      "plt.figure(figsize=(4.2, 4))\n",[m
+[31m-      "for i, comp in enumerate(rbm.components_):\n",[m
+[31m-      "    plt.subplot(hidden_layer_width, hidden_layer_width, i + 1)\n",[m
+[31m-      "    plt.imshow(comp.reshape((perceptron_width, perceptron_width)), cmap=plt.cm.gray_r,\n",[m
+[31m-      "               interpolation='nearest')\n",[m
+[31m-      "    plt.xticks(())\n",[m
+[31m-      "    plt.yticks(())\n",[m
+[31m-      "plt.suptitle(\"RBM's {} hidden layer's weights matrixes\".format(hidden_layer_count), fontsize=16)\n",[m
+[31m-      "plt.subplots_adjust(0.08, 0.02, 0.92, 0.85, 0.08, 0.23)\n",[m
+[31m-      "\n",[m
+[31m-      "plt.show()\n"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [][m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [][m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [][m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [[m
+[31m-      "def max_pooling_prediction(grayscale_img, classifier):\n",[m
+[31m-      "    imgs = nudge_image(grayscale_img)\n",[m
+[31m-      "\n",[m
+[31m-      "    def get_confidences_and_prediction(img, classifier):\n",[m
+[31m-      "        \"\"\"\n",[m
+[31m-      "        Returns the best confidence, the other confidences\n",[m
+[31m-      "        and the prection from the best confidence. \n",[m
+[31m-      "        \"\"\"\n",[m
+[31m-      "        prediction = classifier.predict(img.flatten())[0]\n",[m
+[31m-      "        decision_function_vals = classifier.decision_function(img.flatten())[0]\n",[m
+[31m-      "        confidence = np.amax(decision_function_vals)\n",[m
+[31m-      "        assert prediction == np.argmax(decision_function_vals), (\n",[m
+[31m-      "            \"Is not the prediction supposed to take the most confident label association?\")\n",[m
+[31m-      "        return confidence, decision_function_vals, prediction\n",[m
+[31m-      "\n",[m
+[31m-      "    parallel_confidences = []\n",[m
+[31m-      "    parallel_decision_function_vals = []\n",[m
+[31m-      "    parallel_predictions = []\n",[m
+[31m-      "\n",[m
+[31m-      "    for img in imgs:\n",[m
+[31m-      "        tmp = get_confidences_and_prediction(img, classifier)\n",[m
+[31m-      "        parallel_confidences.append(tmp[0])\n",[m
+[31m-      "        parallel_decision_function_vals.append(tmp[1])\n",[m
+[31m-      "        parallel_predictions.append(tmp[2])\n",[m
+[31m-      "\n",[m
+[31m-      "    best_nudged_index = np.argmax(parallel_confidences)\n",[m
+[31m-      "    prediction = parallel_predictions[best_nudged_index]\n",[m
+[31m-      "    decision_function_vals = parallel_decision_function_vals[best_nudged_index]\n",[m
+[31m-      "    max_confidence = decision_function_vals[prediction]\n",[m
+[31m-      "    best_nudged_img = imgs[best_nudged_index]\n",[m
+[31m-      "    \n",[m
+[31m-      "    return (prediction, decision_function_vals, max_confidence, best_nudged_img)\n",[m
+[31m-      "\n",[m
+[31m-      "img = X_test[1]\n",[m
+[31m-      "print(max_pooling_prediction(img, classifier))"[m
+[31m-     ],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [][m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [[m
+[31m-      {[m
+[31m-       "ename": "AttributeError",[m
+[31m-       "evalue": "'module' object has no attribute 'read'",[m
+[31m-       "output_type": "pyerr",[m
+[31m-       "traceback": [[m
+[31m-        "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n\u001b[1;31mAttributeError\u001b[0m                            Traceback (most recent call last)",[m
+[31m-        "\u001b[1;32m<ipython-input-34-0dafcb41c48c>\u001b[0m in \u001b[0;36m<module>\u001b[1;34m()\u001b[0m\n\u001b[1;32m----> 1\u001b[1;33m \u001b[0mimg\u001b[0m \u001b[1;33m=\u001b[0m \u001b[0mcv2\u001b[0m\u001b[1;33m.\u001b[0m\u001b[0mread\u001b[0m\u001b[1;33m(\u001b[0m\u001b[1;33m)\u001b[0m\u001b[1;33m[\u001b[0m\u001b[1;36m1\u001b[0m\u001b[1;33m]\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0m\u001b[0;32m      2\u001b[0m \u001b[1;31m# print(img)\u001b[0m\u001b[1;33m\u001b[0m\u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m      3\u001b[0m \u001b[1;33m\u001b[0m\u001b[0m\n\u001b[0;32m      4\u001b[0m plt.imshow(img, cmap=plt.cm.gray_r,\n\u001b[0;32m      5\u001b[0m     interpolation='nearest')\n",[m
+[31m-        "\u001b[1;31mAttributeError\u001b[0m: 'module' object has no attribute 'read'"[m
+[31m-       ][m
+[31m-      }[m
+[31m-     ],[m
+[31m-     "prompt_number": 34[m
+[31m-    },[m
+[31m-    {[m
+[31m-     "cell_type": "code",[m
+[31m-     "collapsed": false,[m
+[31m-     "input": [],[m
+[31m-     "language": "python",[m
+[31m-     "metadata": {},[m
+[31m-     "outputs": [][m
+[31m-    }[m
+[31m-   ],[m
+[31m-   "metadata": {}[m
+[31m-  }[m
+[31m- ][m
+[31m-}[m
+\ No newline at end of file[m
