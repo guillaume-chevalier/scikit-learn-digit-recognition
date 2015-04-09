@@ -1,0 +1,1 @@
+After installing or running iPython from the batch file, a window in the browser will open. Load a project file in the notebook's home page to edit or run the project's code.
