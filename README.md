@@ -1,13 +1,15 @@
-# scikit-learn-digit-recognition
+# Digit Recognition with a scikit-learn's Bernoulli RBM and a Logistic Classifier.
 
-## INSTALL INSTRUCTIONS:
 
-Install requirements in this order if hesitating: 
-#### Enthought Canopy
-#### scikit-learn
-#### iPython
-#### openCV
+## INSTALL REQUIREMENTS:
+
 The individual instructions are found in the "REQUIREMENTS" folder. 
+
+1. Enthought Canopy
+2. scikit-learn
+3. iPython
+4. openCV
+
 
 ## DESCRIPTION:
 
