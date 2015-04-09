@@ -3,12 +3,12 @@
 
 ## INSTALL REQUIREMENTS:
 
+The individual instructions are found in the "REQUIREMENTS" folder. 
+
 1. Enthought Canopy
 2. scikit-learn
 3. iPython
 4. openCV
-
-The individual instructions are found in the "REQUIREMENTS" folder. 
 
 
 ## DESCRIPTION:
