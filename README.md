@@ -3,10 +3,10 @@
 ## INSTALL INSTRUCTIONS:
 
 Install requirements in this order if hesitating: 
-#### Enthought Canopy
-#### scikit-learn
-#### iPython
-#### openCV
+###### Enthought Canopy
+###### scikit-learn
+###### iPython
+###### openCV
 The individual instructions are found in the "REQUIREMENTS" folder. 
 
 ## DESCRIPTION:
