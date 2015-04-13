@@ -5,10 +5,9 @@
 
 The individual instructions are found in the "REQUIREMENTS" folder. 
 
-1. Enthought Canopy
+1. Enthought Canopy (or any SciPy ecosystem)
 2. scikit-learn
-3. iPython
-4. openCV
+3. openCV
 
 
 ## DESCRIPTION:
@@ -23,4 +22,3 @@ which is followed by a logistic classifier.
 To further improve this program, the classifier should learn to recognise a wider and noisier dataset, 
 and should learn to recognise what is not a number to be able to pool multiple translated and scaled 
 versions of the input image. What is commonly called a ConvNet could have been used too. 
-

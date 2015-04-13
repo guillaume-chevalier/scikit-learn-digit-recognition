@@ -1,0 +1,4 @@
+Free version on: 
+https://store.enthought.com/downloads/
+
+Or get any other SciPy distribution seen in http://www.scipy.org/install.html
