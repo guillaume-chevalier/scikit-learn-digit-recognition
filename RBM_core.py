@@ -1,11 +1,11 @@
 # This work is much pimped from this example of scikit-learn's documentation:
 # http://scikit-learn.org/stable/auto_examples/neural_networks/plot_rbm_logistic_classification.html
 """
-==============================================================
-Restricted Boltzmann Machine features for digit classification
-==============================================================
+==============================================================================
+        Restricted Boltzmann Machine features for digit classification
+==============================================================================
 
-For grayscale image data where pixel values can be interpreted as degrees of
+For greyscale image data where pixel values can be interpreted as degrees of
 blackness on a white background, like handwritten digit recognition, the
 Bernoulli Restricted Boltzmann machine model can perform effective non-linear
 feature extraction.
@@ -20,6 +20,7 @@ feature extractor and a LogisticRegression classifier. The hyperparameters
 of the entire model (learning rate, hidden layer size, regularization)
 were optimized by grid search (cross validation), but the search has not been
 done with a big amount of parameters.
+
 """
 
 from __future__ import print_function
@@ -29,16 +30,16 @@ print(__doc__)
 # Authors: Yann N. Dauphin, Vlad Niculae, Gabriel Synnaeve, Guillaume Chevalier
 # License: BSD
 
-import pickle
-import os.path
 import math
+import os.path
+import pickle
 import random
-import Image
 
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage
 
+from PIL import Image
 from scipy.ndimage import convolve
 from sklearn import datasets, metrics
 from sklearn.cross_validation import train_test_split
@@ -50,7 +51,7 @@ from sklearn.linear_model import LogisticRegression
 ###############################################################################
 # Defining functions & misc.
 
-perceptron_width = 16  # Should be a multiple of 8. If changed, also edit the line at # TODO: replace "2"
+perceptron_width = 16
 perceptron_count = perceptron_width * perceptron_width
 pickles_suffix = "_{0}x{0}.pickle".format(perceptron_width)
 
@@ -98,19 +99,6 @@ def shuffle_dataset(X, Y):
     z = zip(X, Y)
     random.shuffle(z)
     return zip(*z)
-
-
-def resample_img(img, currentWidth=128, newWidth=perceptron_width):
-    """
-    Changes the size of an image.
-    Yet, if the image needs to be scaled up,
-    the image will only enlarge by a factor of 2 by 2.
-    """
-    inv_ratio = currentWidth/newWidth
-    if (inv_ratio < 1):
-        return scipy.ndimage.zoom(img, 2, order=1)  # TODO: replace "2" by int(1/inv_ratio)
-    else:
-        return img.reshape([newWidth, inv_ratio, newWidth, inv_ratio]).mean(3).mean(1)
 
 
 def scale_elements_values_from_0_to_1(arr):
@@ -172,10 +160,10 @@ def contrast(img, do_rectify=True):
     return rectify(contrast_f(img), do_rectify)
 
 
-def grayscale_img(color_image, inverse=True, do_contrast=False):
+def greyscale_img(color_image, inverse=True, do_contrast=False):
     """
     Convert an RGB image (3D array) to a
-    grayscale 2D array, which elements range
+    greyscale 2D array, which elements range
     from 0 to 1.
     """
     img = np.array(color_image)
@@ -187,26 +175,29 @@ def grayscale_img(color_image, inverse=True, do_contrast=False):
         def iavg(a):
             return (np.average(a))
 
-    grayscale = np.zeros((img.shape[0], img.shape[1]))
+    greyscale = np.zeros((img.shape[0], img.shape[1]))
     for rownum in range(len(img)):
         for colnum in range(len(img[rownum])):
-            grayscale[rownum][colnum] = iavg(img[rownum][colnum])
-    grayscale = scale_elements_values_from_0_to_1(grayscale)
+            greyscale[rownum][colnum] = iavg(img[rownum][colnum])
+    greyscale = scale_elements_values_from_0_to_1(greyscale)
 
     if (do_contrast):
-        grayscale = contrast(grayscale)
+        greyscale = contrast(greyscale)
 
-    return grayscale
+    return greyscale
 
 
-def load_grayscale_img(path="7.jpg", currentWidth=8, wantedWidth=perceptron_width):
+def convert_image_for_network(img):
     """
-    Load an image to a grayscale 2D array with
-    elements' values ranging from 0 to 1.
+    Recieves a Pillow (PIL) image object and converts
+    it to fit the perceptron_width and in grascale.
     """
-    im = Image.open(path)
-    return resample_img(grayscale_img(im), currentWidth, newWidth=wantedWidth)
+    # Rarely shall images be scaled up, hence BICUBIC interplolation is used.
+    img = img.resize((perceptron_width, perceptron_width), Image.BICUBIC)
 
+    img = greyscale_img(img, inverse=True, do_contrast=True)
+
+    return img
 
 
 def predict_2D_image(img, classifier, show_plot=False):
@@ -216,13 +207,16 @@ def predict_2D_image(img, classifier, show_plot=False):
     Optionnaly shows the result of the prediction in a plot.
     """
     predicted_num = classifier.predict(img.flatten())[0]
+    confidence = np.amax(classifier.decision_function([img.flatten()]))
     print("Predicted number: {}".format(predicted_num))
+    print("Confidence: {}".format(str(confidence)[:6]))
 
     if (show_plot):
         bars_width = 0.8
-        #TODO: which one?
         decision_function_vals = classifier.decision_function(img.flatten())[0]
+        # # Other interesting functions exist:
         # decision_function_vals = classifier.predict_log_proba(img.flatten())[0]
+        # decision_function_vals = classifier.predict_proba(img.flatten())[0]
 
         confidence_labels = range(len(decision_function_vals))
         confidence_labels_pos = np.arange(bars_width/2, len(decision_function_vals)+bars_width/2, 1)
@@ -246,11 +240,15 @@ def predict_2D_image(img, classifier, show_plot=False):
         ax2.set_xticklabels(confidence_labels)
 
         plt.show()
-    return predicted_num
+    return predicted_num, confidence
 
 
 ###############################################################################
 # Load Data
+
+print("==============================================================================")
+print('                             Loading classifier')
+print("==============================================================================")
 
 datasets_path = 'dataset_pickles\\datasets{}'.format(pickles_suffix)
 if (os.path.exists(datasets_path)):
@@ -261,7 +259,7 @@ else:
     def load_default_dataset():
         """
         Fancy "datasets.load_digits()". Returns a list
-        of flat arrays (lists) representing grayscale images, and
+        of flat arrays (lists) representing greyscale images, and
         their associated labels.
         """
         images = []
@@ -273,15 +271,10 @@ else:
                 images, labels = pickle.load(f)
         else:
             digits_set = datasets.load_digits()
-            original_images = np.asarray(digits_set.data, 'float32')
 
-            if(perceptron_width != 8):  # Resampling if needed
-                xi = 0
-                for x in original_images:
-                    this_image = resample_img(x.reshape(8, 8), currentWidth=8, newWidth=perceptron_width).flatten()
-                    images.append(this_image)
-                    xi += 1
-            images = (images - np.min(images, 0)) / (np.max(images, 0) + 0.0001)  # 0-1 scaling
+            for x in np.asarray(digits_set.data, 'float32'):
+                this_image = convert_image_for_network(Image.fromarray(x.reshape(8, 8))).flatten()
+                images.append(this_image)
             labels = digits_set.target
 
             with open(pickle_path, 'w') as f:
@@ -293,11 +286,10 @@ else:
     def load_fnt_dataset():
         """
         Loads the Chars74K's "Fnt" dataset. Returns a list
-        of flat arrays (lists) representing grayscale images, and
+        of flat arrays (lists) representing greyscale images, and
         their associated labels.
         Can be downloaded from: http://www.ee.surrey.ac.uk/CVSSP/demos/chars74k/
         Direct download link: http://www.ee.surrey.ac.uk/CVSSP/demos/chars74k/EnglishFnt.tgz
-        TODO: CITE in http://scholar.google.co.uk/citations?hl=en&user=RzL_a1gAAAAJ&view_op=list_works
         """
         images = []
         labels = []
@@ -317,8 +309,10 @@ else:
                     with open(pickle_path) as f:
                         this_data_img, this_target_label = pickle.load(f)
                 else:
-                    this_data_img = load_grayscale_img(path=img_path, currentWidth=128, wantedWidth=perceptron_width).flatten()
+                    this_img = Image.open(img_path)
+                    this_data_img = convert_image_for_network(this_img).flatten()
                     this_target_label = x-1
+
                     with open(pickle_path, 'w') as f:
                         pickle.dump([this_data_img, this_target_label], f)
 
@@ -348,9 +342,10 @@ X_train, Y_train = nudge_dataset(X_train, Y_train)
 # This redefines the test data ratio as:
 test_size = len(X_test) * 1. / len(X_train)
 
+print("")
 print("Setup Done:")
 print("Total images: {}".format(
-    len(X)*(initial_test_size_split+5*(1-initial_test_size_split))
+    len(X_train) + len(X_test)
 ))
 print("Total training images: {}".format(len(X_train)))
 print("Total testing images: {}".format(len(X_test)))
@@ -461,9 +456,9 @@ print("Test results of logistic regression using RBM features:\n{}\n".format(
 
 if __name__ == "__main__":
     ###############################################################################
-    # Plotting 1st RBM hidden layer's weight matrix
+    # Plotting 1st RBM hidden layer's weights matrices
 
-    print("Plotting 1st RBM hidden layer's weight matrix.")
+    print("Plotting 1st RBM hidden layer's weights matrices.")
     print("Preparing plot", end="")
     plt.figure(figsize=(4.2, 4))
     for i, comp in enumerate(rbm.components_):
@@ -475,9 +470,12 @@ if __name__ == "__main__":
                    interpolation='nearest')
         plt.xticks(())
         plt.yticks(())
-    plt.suptitle("RBM's {} hidden layer's weights matrixes".format(
+    plt.suptitle("RBM's {} hidden layer's weights matrices".format(
         hidden_layer_count), fontsize=16)
     plt.subplots_adjust(0.08, 0.02, 0.92, 0.85, 0.08, 0.23)
-    print(" Done.")
 
     plt.show()
+
+    print("")
+    print("______________________________________________________________________________")
+    print(" Done.")

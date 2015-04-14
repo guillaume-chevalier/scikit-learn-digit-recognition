@@ -1,35 +1,35 @@
+import os
+import sys
+import glob
+
 from RBM_core import *
 
 ###############################################################################
-# Predictions of images outside trained datasets
+# Classification of .jpg images located in "custom_test_datas/"
+# Run with "-s" arg to run in silent mode: to not show plots
 
-show_plots = False  # TODO: set to True.
-#TODO:  currentWidth= NONE !!!! rem from "def load_grayscale... " and load dynamically.
-print('"Now predicting numbers for pictures in "custom_test_datas\\".')
+show_plots = True
 
-imgs = []
-imgs.append(load_grayscale_img(path="custom_test_datas\\2.jpg", currentWidth=8, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\2_2.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\2_3.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\3.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\3_1.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\3_2.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\7.jpg", currentWidth=8, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\7_1.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\7_2.jpg", currentWidth=16, wantedWidth=perceptron_width))
-imgs.append(load_grayscale_img(path="custom_test_datas\\9.jpg", currentWidth=16, wantedWidth=perceptron_width))
-# imgs.append(X_test[1001])
-# imgs.append(X_test[2020])
-# imgs.append(X_test[3004])
-# imgs.append(X_test[4005])
-# imgs.append(X_test[5009])
+for arg in sys.argv:
+    if arg == "-s" or arg == "-S":
+        show_plots = False
 
-for img in imgs:
-    predicted_num = predict_2D_image(
-        img,
+print("==============================================================================")
+print('           Now predicting numbers for pictures in "custom_test_datas/"')
+print("==============================================================================")
+
+path = "custom_test_datas/"
+for file in glob.glob(os.path.join(path, '*.jpg')):
+    print("\nFile: \"{}\"".format(file))
+    img = Image.open(file)
+    local_img = convert_image_for_network(img)
+    predict_2D_image(
+        local_img,
         classifier,
         show_plot=show_plots
     )
-    # print(np.argmax(classifier.predict_log_proba([img.flatten()])))
 
+
+print("")
+print("______________________________________________________________________________")
 print("Done.")

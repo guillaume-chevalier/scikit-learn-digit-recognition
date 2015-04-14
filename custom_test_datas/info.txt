@@ -1,0 +1,1 @@
+Running the command "python ../recognise_from_file.py" will classify each image in this folder to it's guessed number. 
