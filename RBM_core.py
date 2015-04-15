@@ -160,7 +160,7 @@ def contrast(img, do_rectify=True):
     return rectify(contrast_f(img), do_rectify)
 
 
-def greyscale_img(color_image, inverse=True, do_contrast=False):
+def greyscale_img(color_image, inverse=True):
     """
     Convert an RGB image (3D array) to a
     greyscale 2D array, which elements range
@@ -181,21 +181,27 @@ def greyscale_img(color_image, inverse=True, do_contrast=False):
             greyscale[rownum][colnum] = iavg(img[rownum][colnum])
     greyscale = scale_elements_values_from_0_to_1(greyscale)
 
-    if (do_contrast):
-        greyscale = contrast(greyscale)
-
     return greyscale
 
 
-def convert_image_for_network(img):
+def convert_image_for_network(img, contrast_level=2):
     """
     Recieves a Pillow (PIL) image object and converts
     it to fit the perceptron_width and in grascale.
+    contrast_level:
+        0: no contrast
+        1: contrast
+        2: contrast and trimming to rectification
     """
     # Rarely shall images be scaled up, hence BICUBIC interplolation is used.
     img = img.resize((perceptron_width, perceptron_width), Image.BICUBIC)
 
-    img = greyscale_img(img, inverse=True, do_contrast=True)
+    img = greyscale_img(img, inverse=True)
+
+    if (contrast_level == 1):
+        img = contrast(img, False)
+    elif (contrast_level == 2):
+        img = contrast(img, True)
 
     return img
 
@@ -207,16 +213,14 @@ def predict_2D_image(img, classifier, show_plot=False):
     Optionnaly shows the result of the prediction in a plot.
     """
     predicted_num = classifier.predict(img.flatten())[0]
-    confidence = np.amax(classifier.decision_function([img.flatten()]))
+    decision_function_vals = classifier.decision_function(img.flatten())[0]
+    confidence = np.amax(decision_function_vals)
+    print("")
     print("Predicted number: {}".format(predicted_num))
     print("Confidence: {}".format(str(confidence)[:6]))
 
     if (show_plot):
         bars_width = 0.8
-        decision_function_vals = classifier.decision_function(img.flatten())[0]
-        # # Other interesting functions exist:
-        # decision_function_vals = classifier.predict_log_proba(img.flatten())[0]
-        # decision_function_vals = classifier.predict_proba(img.flatten())[0]
 
         confidence_labels = range(len(decision_function_vals))
         confidence_labels_pos = np.arange(bars_width/2, len(decision_function_vals)+bars_width/2, 1)
@@ -273,7 +277,7 @@ else:
             digits_set = datasets.load_digits()
 
             for x in np.asarray(digits_set.data, 'float32'):
-                this_image = convert_image_for_network(Image.fromarray(x.reshape(8, 8))).flatten()
+                this_image = convert_image_for_network(Image.fromarray(x.reshape(8, 8)), contrast_level=0).flatten()
                 images.append(this_image)
             labels = digits_set.target
 
@@ -310,7 +314,7 @@ else:
                         this_data_img, this_target_label = pickle.load(f)
                 else:
                     this_img = Image.open(img_path)
-                    this_data_img = convert_image_for_network(this_img).flatten()
+                    this_data_img = convert_image_for_network(this_img, contrast_level=0).flatten()
                     this_target_label = x-1
 
                     with open(pickle_path, 'w') as f:
@@ -456,9 +460,9 @@ print("Test results of logistic regression using RBM features:\n{}\n".format(
 
 if __name__ == "__main__":
     ###############################################################################
-    # Plotting 1st RBM hidden layer's weights matrices
+    # Plotting RBM's hidden layer's weights matrices
 
-    print("Plotting 1st RBM hidden layer's weights matrices.")
+    print("Plotting RBM's hidden layer's weights matrices.")
     print("Preparing plot", end="")
     plt.figure(figsize=(4.2, 4))
     for i, comp in enumerate(rbm.components_):

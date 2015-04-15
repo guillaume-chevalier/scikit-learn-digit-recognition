@@ -24,24 +24,25 @@ The individual installation instructions are found in the "REQUIREMENTS" folder.
 
 ## USAGE
 
-To plot RBM's hidden layer's weights matrices:
-- ```sh
+### To plot RBM's hidden layer's weights matrices:
+```sh
 C:\...\scikit-learn-digit-recognition>python RBM_core.py
 ```
 The RBM_core.py file also contains the core of the program, which is used by the next files. 
 
 
-Classification of .jpg images located in the "custom_test_datas/" folder:
-- ```sh
+### Classification of .jpg images located in the "custom_test_datas/" folder:
+```sh
 C:\...\scikit-learn-digit-recognition>python recognise_from_file.py
 ```
 Or the following, which will not show plots
 ```sh
 C:\...\scikit-learn-digit-recognition>python recognise_from_file.py -s
 ```
+Or simply run "custom_test_datas/classify.bat"
 
-Classification of images from computer's webcam:
-- ```sh
+### Classification of images from computer's webcam:
+```sh
 C:\...\scikit-learn-digit-recognition>python recognise_from_webcam.py
 ```
 Or the following, which will not show plots

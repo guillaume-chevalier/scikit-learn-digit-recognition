@@ -20,9 +20,9 @@ print("=========================================================================
 
 path = "custom_test_datas/"
 for file in glob.glob(os.path.join(path, '*.jpg')):
-    print("\nFile: \"{}\"".format(file))
+    print("File: \"{}\"".format(file))
     img = Image.open(file)
-    local_img = convert_image_for_network(img)
+    local_img = convert_image_for_network(img, contrast_level=0)
     predict_2D_image(
         local_img,
         classifier,

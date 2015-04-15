@@ -1,1 +1,1 @@
-Running the command "python ../recognise_from_file.py" will classify each image in this folder to it's guessed number. 
+Running "classify.bat" will show a plot for each image to classify in this folder. 

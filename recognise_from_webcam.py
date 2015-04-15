@@ -40,36 +40,35 @@ print('                 Now predicting numbers for webcam pictures')
 print("==============================================================================")
 
 cv2.namedWindow('Normal view, press ESC to exit')
-vc = cv2.VideoCapture(0)
+try:
+    vc = cv2.VideoCapture(0)
 
-if vc.isOpened():  # try to get the first frame
-    rval, frame = vc.read()
-else:
-    rval = False
+    if vc.isOpened():  # try to get the first frame
+        rval, frame = vc.read()
+    else:
+        rval = False
 
-while rval:
-    cv2.imshow("Normal view, press ESC to exit", frame)
-    time.sleep(0.15)  # Delay
-    rval, frame = vc.read()
+    while rval:
+        cv2.imshow("Normal view, press ESC to exit", frame)
+        time.sleep(0.15)  # Delay
+        rval, frame = vc.read()
 
-    if (process_next_image):
-        process_next_image = False
-        threaded_func = Thread(
-            target=greyscale_image_and_predict,
-            args=([frame])
-        )
-        threaded_func.start()
+        if (process_next_image):
+            process_next_image = False
+            threaded_func = Thread(
+                target=greyscale_image_and_predict,
+                args=([frame])
+            )
+            threaded_func.start()
 
-    key = cv2.waitKey(20)
-    if key == 27:  # exit on ESC
-        #TODO: join threads and stop.
-        break
-
-# Free camera resources
-#TODO: try/except this
-cv2.destroyWindow("Normal view, press ESC to exit")
-del vc
-threaded_func.join()
+        key = cv2.waitKey(20)
+        if key == 27:  # exit on ESC
+            cv2.destroyWindow("Normal view, press ESC to exit")
+            break
+finally:
+    # Free camera resources
+    del vc
+    threaded_func.join()
 
 print("")
 print("______________________________________________________________________________")
