@@ -1,72 +1,75 @@
-from RBM_core import *
-
-###############################################################################
-# Predicting from machine's vision
-
 import time
-# import sys
-# import threading
-# import multiprocessing
-# import thread
+import sys
+
 import cv2
 
 from threading import Thread
+from RBM_core import *
+
+###############################################################################
+# Classification of images from computer's webcam
+# Run with "-s" arg to run in silent mode: to not show plots
+
+show_plots = True
+
+for arg in sys.argv:
+    if arg == "-s" or arg == "-S":
+        show_plots = False
 
 process_next_image = True
 
 
-def convert_image_frame(local_img_frame):
-    reshaped_img = grayscale_img(
-        local_img_frame, inverse=True, do_contrast=True)
-    reshaped_img = reshaped_img.reshape(
-        [perceptron_width, reshaped_img.shape[0]/perceptron_width,
-         perceptron_width, reshaped_img.shape[1]/perceptron_width]
-    ).mean(3).mean(1)
-    return reshaped_img
-
-
-def grayscale_image_and_predict(frame):
+def greyscale_image_and_predict(frame):
     global process_next_image
+    global show_plots
 
-    local_img = convert_image_frame(frame)
-    prediction = predict_2D_image(
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    img = Image.fromarray(img)
+
+    local_img = convert_image_for_network(img)
+    predict_2D_image(
         local_img,
         classifier,
-        show_plot=True
+        show_plot=show_plots
     )
     process_next_image = True
 
 
+print("==============================================================================")
+print('                 Now predicting numbers for webcam pictures')
+print("==============================================================================")
+
 cv2.namedWindow('Normal view, press ESC to exit')
-vc = cv2.VideoCapture(0)
+try:
+    vc = cv2.VideoCapture(0)
 
-if vc.isOpened():  # try to get the first frame
-    rval, frame = vc.read()
-else:
-    rval = False
+    if vc.isOpened():  # try to get the first frame
+        rval, frame = vc.read()
+    else:
+        rval = False
 
-while rval:
-    cv2.imshow("Normal view, press ESC to exit", frame)
-    time.sleep(0.15)  # Delay
-    rval, frame = vc.read()
+    while rval:
+        cv2.imshow("Normal view, press ESC to exit", frame)
+        time.sleep(0.15)  # Delay
+        rval, frame = vc.read()
 
-    if (process_next_image):
-        process_next_image = False
-        threaded_func = Thread(
-            target=grayscale_image_and_predict,
-            args=([frame])
-        )
-        threaded_func.start()
+        if (process_next_image):
+            process_next_image = False
+            threaded_func = Thread(
+                target=greyscale_image_and_predict,
+                args=([frame])
+            )
+            threaded_func.start()
 
-    key = cv2.waitKey(20)
-    if key == 27:  # exit on ESC
-        #TODO: join threads and stop.
-        break
+        key = cv2.waitKey(20)
+        if key == 27:  # exit on ESC
+            cv2.destroyWindow("Normal view, press ESC to exit")
+            break
+finally:
+    # Free camera resources
+    del vc
+    threaded_func.join()
 
-# Free camera resources
-#TODO: try/except this
-cv2.destroyWindow("Normal view, press ESC to exit")
-del vc
-threaded_func.join()
-
+print("")
+print("______________________________________________________________________________")
 print("Done.")
