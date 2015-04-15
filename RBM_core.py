@@ -37,7 +37,6 @@ import random
 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.ndimage
 
 from PIL import Image
 from scipy.ndimage import convolve
@@ -89,16 +88,6 @@ def nudge_dataset(X, Y):
                         for vector in direction_vectors])
     Y = np.concatenate([Y for _ in range(5)], axis=0)
     return X, Y
-
-
-def shuffle_dataset(X, Y):
-    """
-    Shuffle two lists keeping their elements
-    associated: Xi == Yi.
-    """
-    z = zip(X, Y)
-    random.shuffle(z)
-    return zip(*z)
 
 
 def scale_elements_values_from_0_to_1(arr):
