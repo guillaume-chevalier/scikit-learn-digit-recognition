@@ -17,6 +17,7 @@ for arg in sys.argv:
 print("==============================================================================")
 print('           Now predicting numbers for pictures in "custom_test_datas/"')
 print("==============================================================================")
+print("")
 
 path = "custom_test_datas/"
 for file in glob.glob(os.path.join(path, '*.jpg')):
@@ -30,6 +31,5 @@ for file in glob.glob(os.path.join(path, '*.jpg')):
     )
 
 
-print("")
 print("______________________________________________________________________________")
 print("Done.")

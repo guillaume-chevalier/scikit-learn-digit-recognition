@@ -38,6 +38,7 @@ def greyscale_image_and_predict(frame):
 print("==============================================================================")
 print('                 Now predicting numbers for webcam pictures')
 print("==============================================================================")
+print("")
 
 cv2.namedWindow('Normal view, press ESC to exit')
 try:
@@ -70,6 +71,5 @@ finally:
     del vc
     threaded_func.join()
 
-print("")
 print("______________________________________________________________________________")
 print("Done.")

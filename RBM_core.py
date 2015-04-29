@@ -204,9 +204,9 @@ def predict_2D_image(img, classifier, show_plot=False):
     predicted_num = classifier.predict(img.flatten())[0]
     decision_function_vals = classifier.decision_function(img.flatten())[0]
     confidence = np.amax(decision_function_vals)
-    print("")
     print("Predicted number: {}".format(predicted_num))
     print("Confidence: {}".format(str(confidence)[:6]))
+    print("")
 
     if (show_plot):
         bars_width = 0.8
@@ -374,7 +374,7 @@ if (not CV_already_done):
         'logistic__C': [1000.0]}
 
     # perform a grid search over the parameter
-    gs = GridSearchCV(classifier, params, n_jobs=-1, verbose=1, cv=2)
+    gs = GridSearchCV(classifier, params, n_jobs=-1, verbose=1, cv=3)
     gs.fit(X_train, Y_train)
 
     # print diagnostic information to the user and grab the
@@ -412,7 +412,6 @@ else:
 print("Neural network's parameters:")
 print(CV_result["rbm"])
 print(CV_result["logistic"])
-# print(CV_result)
 
 
 ###############################################################################
@@ -451,7 +450,11 @@ if __name__ == "__main__":
     ###############################################################################
     # Plotting RBM's hidden layer's weights matrices
 
-    print("Plotting RBM's hidden layer's weights matrices.")
+    print("==============================================================================")
+    print("                Plotting RBM's hidden layer's weights matrices")
+    print("==============================================================================")
+    print("")
+
     print("Preparing plot", end="")
     plt.figure(figsize=(4.2, 4))
     for i, comp in enumerate(rbm.components_):
@@ -467,8 +470,9 @@ if __name__ == "__main__":
         hidden_layer_count), fontsize=16)
     plt.subplots_adjust(0.08, 0.02, 0.92, 0.85, 0.08, 0.23)
 
-    plt.show()
-
     print("")
+    plt.show()
+    print("")
+
     print("______________________________________________________________________________")
-    print(" Done.")
+    print("Done.")
